@@ -1,0 +1,106 @@
+name: CI Backend - Ze da Fruta
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Testes e Cobertura
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Instalar dependências
+      run: npm ci
+
+    - name: Executar linter
+      run: npm run lint
+
+    - name: Executar testes unitários
+      run: npm test
+
+    - name: Executar testes com cobertura
+      run: npm run test:cov
+
+    - name: Upload de cobertura para Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Gerar relatório de cobertura
+      run: |
+        echo "📊 Relatório de Cobertura de Testes"
+        cat coverage/coverage-summary.json || echo "Relatório não disponível"
+
+  build:
+    name: Build da Aplicação
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Instalar dependências
+      run: npm ci
+
+    - name: Build da aplicação
+      run: npm run build
+
+    - name: Verificar build
+      run: |
+        if [ -d "dist" ]; then
+          echo "✅ Build concluído com sucesso!"
+          ls -la dist/
+        else
+          echo "❌ Diretório dist não encontrado"
+          exit 1
+        fi
+
+  security:
+    name: Análise de Segurança
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Instalar dependências
+      run: npm ci
+
+    - name: Audit de segurança
+      run: npm audit --audit-level=moderate
+      continue-on-error: true
+
+    - name: Verificar vulnerabilidades críticas
+      run: npm audit --audit-level=critical
